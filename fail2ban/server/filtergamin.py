@@ -45,102 +45,106 @@ logSys = getLogger(__name__)
 # that matches a given regular expression. This class is instanciated by
 # a Jail object.
 
+
 class FilterGamin(FileFilter):
 
-	##
-	# Constructor.
-	#
-	# Initialize the filter object with default values.
-	# @param jail the jail object
+    ##
+    # Constructor.
+    #
+    # Initialize the filter object with default values.
+    # @param jail the jail object
 
-	def __init__(self, jail):
-		FileFilter.__init__(self, jail)
-		self.__modified = False
-		# Gamin monitor
-		self.monitor = gamin.WatchMonitor()
-		fd = self.monitor.get_fd()
-		flags = fcntl.fcntl(fd, fcntl.F_GETFD)
-		fcntl.fcntl(fd, fcntl.F_SETFD, flags|fcntl.FD_CLOEXEC)
-		logSys.debug("Created FilterGamin")
+    def __init__(self, jail):
+        FileFilter.__init__(self, jail)
+        self.__modified = False
+        # Gamin monitor
+        self.monitor = gamin.WatchMonitor()
+        fd = self.monitor.get_fd()
+        flags = fcntl.fcntl(fd, fcntl.F_GETFD)
+        fcntl.fcntl(fd, fcntl.F_SETFD, flags | fcntl.FD_CLOEXEC)
+        logSys.debug("Created FilterGamin")
 
-	def callback(self, path, event):
-		logSys.log(4, "Got event: " + repr(event) + " for " + path)
-		if event in (gamin.GAMCreated, gamin.GAMChanged, gamin.GAMExists):
-			logSys.debug("File changed: " + path)
-			self.__modified = True
+    def callback(self, path, event):
+        logSys.log(4, "Got event: " + repr(event) + " for " + path)
+        if event in (gamin.GAMCreated, gamin.GAMChanged, gamin.GAMExists):
+            logSys.debug("File changed: " + path)
+            self.__modified = True
 
-		self.ticks += 1
-		self._process_file(path)
+        self.ticks += 1
+        self._process_file(path)
 
-	def _process_file(self, path):
-		"""Process a given file
+    def _process_file(self, path):
+        """Process a given file
 
-		TODO -- RF:
-		this is a common logic and must be shared/provided by FileFilter
-		"""
-		self.getFailures(path)
-		if not self.banASAP: # pragma: no cover
-			self.performBan()
-		self.__modified = False
+        TODO -- RF:
+        this is a common logic and must be shared/provided by FileFilter
+        """
+        self.getFailures(path)
+        if not self.banASAP:  # pragma: no cover
+            self.performBan()
+        self.__modified = False
 
-	##
-	# Add a log file path
-	#
-	# @param path log file path
+    ##
+    # Add a log file path
+    #
+    # @param path log file path
 
-	def _addLogPath(self, path):
-		self.monitor.watch_file(path, self.callback)
+    def _addLogPath(self, path):
+        self.monitor.watch_file(path, self.callback)
 
-	##
-	# Delete a log path
-	#
-	# @param path the log file to delete
+    ##
+    # Delete a log path
+    #
+    # @param path the log file to delete
 
-	def _delLogPath(self, path):
-		self.monitor.stop_watch(path)
+    def _delLogPath(self, path):
+        self.monitor.stop_watch(path)
 
-	def _handleEvents(self):
-		ret = False
-		mon = self.monitor
-		while mon and mon.event_pending() > 0:
-			mon.handle_events()
-			mon = self.monitor
-			ret = True
-		return ret
+    def _handleEvents(self):
+        ret = False
+        mon = self.monitor
+        while mon and mon.event_pending() > 0:
+            mon.handle_events()
+            mon = self.monitor
+            ret = True
+        return ret
 
-	##
-	# Main loop.
-	#
-	# This function is the main loop of the thread. It checks if the
-	# file has been modified and looks for failures.
-	# @return True when the thread exits nicely
+    ##
+    # Main loop.
+    #
+    # This function is the main loop of the thread. It checks if the
+    # file has been modified and looks for failures.
+    # @return True when the thread exits nicely
 
-	def run(self):
-		# Gamin needs a loop to collect and dispatch events
-		while self.active:
-			if self.idle:
-				# wait a little bit here for not idle, to prevent hi-load:
-				if not Utils.wait_for(lambda: not self.active or not self.idle,
-					self.sleeptime * 10, self.sleeptime
-				):
-					self.ticks += 1
-					continue
-			Utils.wait_for(lambda: not self.active or self._handleEvents(),
-				self.sleeptime)
-			self.ticks += 1
-		logSys.debug("[%s] filter terminated", self.jailName)
-		return True
+    def run(self):
+        # Gamin needs a loop to collect and dispatch events
+        while self.active:
+            if self.idle:
+                # wait a little bit here for not idle, to prevent hi-load:
+                if not Utils.wait_for(
+                    lambda: not self.active or not self.idle,
+                    self.sleeptime * 10,
+                    self.sleeptime,
+                ):
+                    self.ticks += 1
+                    continue
+            Utils.wait_for(
+                lambda: not self.active or self._handleEvents(), self.sleeptime
+            )
+            self.ticks += 1
+        logSys.debug("[%s] filter terminated", self.jailName)
+        return True
 
-	def stop(self):
-		super(FilterGamin, self).stop()
-		self.__cleanup()
+    def stop(self):
+        super(FilterGamin, self).stop()
+        self.__cleanup()
 
-	##
-	# Desallocates the resources used by Gamin.
+    ##
+    # Desallocates the resources used by Gamin.
 
-	def __cleanup(self):
-		if not self.monitor:
-			return
-		for filename in self.getLogPaths():
-			self.monitor.stop_watch(filename)
-		self.monitor = None
+    def __cleanup(self):
+        if not self.monitor:
+            return
+        for filename in self.getLogPaths():
+            self.monitor.stop_watch(filename)
+        self.monitor = None

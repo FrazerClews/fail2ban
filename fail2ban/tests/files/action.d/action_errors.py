@@ -1,9 +1,7 @@
-
 from fail2ban.server.action import ActionBase
 
 
 class TestAction(ActionBase):
-
     def __init__(self, jail, name):
         super(TestAction, self).__init__(jail, name)
 
@@ -18,5 +16,6 @@ class TestAction(ActionBase):
 
     def unban(self):
         raise Exception()
+
 
 Action = TestAction

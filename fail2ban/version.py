@@ -26,6 +26,7 @@ __license__ = "GPL-v2+"
 
 version = "1.0.1.dev1"
 
+
 def normVersion():
-  """ Returns fail2ban version in normalized machine-readable format"""
-  return version.replace('.fix', '').replace('.dev', '.')
+    """ Returns fail2ban version in normalized machine-readable format"""
+    return version.replace(".fix", "").replace(".dev", ".")

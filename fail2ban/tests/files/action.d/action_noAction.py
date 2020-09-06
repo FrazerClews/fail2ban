@@ -1,4 +1,3 @@
-
 from fail2ban.server.action import ActionBase
 
 

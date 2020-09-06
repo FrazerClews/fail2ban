@@ -1,9 +1,7 @@
-
 from fail2ban.server.action import ActionBase
 
 
 class TestAction(ActionBase):
-
     def __init__(self, jail, name, opt1, opt2=None):
         super(TestAction, self).__init__(jail, name)
         self._logSys.debug("%s initialised" % self.__class__.__name__)
@@ -25,5 +23,6 @@ class TestAction(ActionBase):
 
     def testmethod(self, text):
         return "%s %s %s" % (self._opt3, text, self.opt1)
+
 
 Action = TestAction

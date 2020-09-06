@@ -33,79 +33,82 @@ logSys = getLogger(__name__)
 
 
 class JailsReader(ConfigReader):
+    def __init__(self, force_enable=False, **kwargs):
+        """
+        Parameters
+        ----------
+        force_enable : bool, optional
+          Passed to JailReader to force enable the jails.
+          It is for internal use
+        """
+        ConfigReader.__init__(self, **kwargs)
+        self.__jails = list()
+        self.__force_enable = force_enable
 
-	def __init__(self, force_enable=False, **kwargs):
-		"""
-		Parameters
-		----------
-		force_enable : bool, optional
-		  Passed to JailReader to force enable the jails.
-		  It is for internal use
-		"""
-		ConfigReader.__init__(self, **kwargs)
-		self.__jails = list()
-		self.__force_enable = force_enable
+    @property
+    def jails(self):
+        return self.__jails
 
-	@property
-	def jails(self):
-		return self.__jails
+    def read(self):
+        self.__jails = list()
+        return ConfigReader.read(self, "jail")
 
-	def read(self):
-		self.__jails = list()
-		return ConfigReader.read(self, "jail")
+    def getOptions(self, section=None, ignoreWrong=True):
+        """Reads configuration for jail(s) and adds enabled jails to __jails"""
+        opts = []
+        self.__opts = ConfigReader.getOptions(self, "Definition", opts)
 
-	def getOptions(self, section=None, ignoreWrong=True):
-		"""Reads configuration for jail(s) and adds enabled jails to __jails
-		"""
-		opts = []
-		self.__opts = ConfigReader.getOptions(self, "Definition", opts)
+        if section is None:
+            sections = self.sections()
+        else:
+            sections = [section]
 
-		if section is None:
-			sections = self.sections()
-		else:
-			sections = [ section ]
+        # Get the options of all jails.
+        parse_status = 0
+        for sec in sections:
+            if sec == "INCLUDES":
+                continue
+            # use the cfg_share for filter/action caching and the same config for all
+            # jails (use_config=...), therefore don't read it here:
+            jail = JailReader(
+                sec,
+                force_enable=self.__force_enable,
+                share_config=self.share_config,
+                use_config=self._cfg,
+            )
+            ret = jail.getOptions()
+            if ret:
+                if jail.isEnabled():
+                    # at least one jail was successful:
+                    parse_status |= 1
+                    # We only add enabled jails
+                    self.__jails.append(jail)
+            else:
+                logSys.error(
+                    "Errors in jail %r.%s", sec, " Skipping..." if ignoreWrong else ""
+                )
+                self.__jails.append(jail)
+                # at least one jail was invalid:
+                parse_status |= 2
+        return (ignoreWrong and parse_status & 1) or not (parse_status & 2)
 
-		# Get the options of all jails.
-		parse_status = 0
-		for sec in sections:
-			if sec == 'INCLUDES':
-				continue
-			# use the cfg_share for filter/action caching and the same config for all 
-			# jails (use_config=...), therefore don't read it here:
-			jail = JailReader(sec, force_enable=self.__force_enable, 
-				share_config=self.share_config, use_config=self._cfg)
-			ret = jail.getOptions()
-			if ret:
-				if jail.isEnabled():
-					# at least one jail was successful:
-					parse_status |= 1
-					# We only add enabled jails
-					self.__jails.append(jail)
-			else:
-				logSys.error("Errors in jail %r.%s", sec, " Skipping..." if ignoreWrong else "")
-				self.__jails.append(jail)
-				# at least one jail was invalid:
-				parse_status |= 2
-		return ((ignoreWrong and parse_status & 1) or not (parse_status & 2))
+    def convert(self, allow_no_files=False):
+        """Convert read before __opts and jails to the commands stream
 
-	def convert(self, allow_no_files=False):
-		"""Convert read before __opts and jails to the commands stream
+        Parameters
+        ----------
+        allow_missing : bool
+          Either to allow log files to be missing entirely.  Primarily is
+          used for testing
+        """
 
-		Parameters
-		----------
-		allow_missing : bool
-		  Either to allow log files to be missing entirely.  Primarily is
-		  used for testing
-		"""
+        stream = list()
+        # Convert jails
+        for jail in self.__jails:
+            stream.extend(jail.convert(allow_no_files=allow_no_files))
+        # Start jails
+        for jail in self.__jails:
+            if not jail.options.get("config-error"):
+                stream.append(["start", jail.getName()])
 
-		stream = list()
-		# Convert jails
-		for jail in self.__jails:
-			stream.extend(jail.convert(allow_no_files=allow_no_files))
-		# Start jails
-		for jail in self.__jails:
-			if not jail.options.get('config-error'):
-				stream.append(["start", jail.getName()])
-
-		return stream
-
+        return stream

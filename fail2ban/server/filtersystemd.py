@@ -27,8 +27,9 @@ import time
 from distutils.version import LooseVersion
 
 from systemd import journal
-if LooseVersion(getattr(journal, '__version__', "0")) < '204':
-	raise ImportError("Fail2Ban requires systemd >= 204")
+
+if LooseVersion(getattr(journal, "__version__", "0")) < "204":
+    raise ImportError("Fail2Ban requires systemd >= 204")
 
 from .failmanager import FailManagerEmpty
 from .filter import JournalFilter, Filter
@@ -47,306 +48,337 @@ logSys = getLogger(__name__)
 # else that matches a given regular expression. This class is instantiated by
 # a Jail object.
 
-class FilterSystemd(JournalFilter): # pragma: systemd no cover
-	##
-	# Constructor.
-	#
-	# Initialize the filter object with default values.
-	# @param jail the jail object
 
-	def __init__(self, jail, **kwargs):
-		jrnlargs = FilterSystemd._getJournalArgs(kwargs)
-		JournalFilter.__init__(self, jail, **kwargs)
-		self.__modified = 0
-		# Initialise systemd-journal connection
-		self.__journal = journal.Reader(**jrnlargs)
-		self.__matches = []
-		self.setDatePattern(None)
-		logSys.debug("Created FilterSystemd")
+class FilterSystemd(JournalFilter):  # pragma: systemd no cover
+    ##
+    # Constructor.
+    #
+    # Initialize the filter object with default values.
+    # @param jail the jail object
 
-	@staticmethod
-	def _getJournalArgs(kwargs):
-		args = {'converters':{'__CURSOR': lambda x: x}}
-		try:
-			args['path'] = kwargs.pop('journalpath')
-		except KeyError:
-			pass
+    def __init__(self, jail, **kwargs):
+        jrnlargs = FilterSystemd._getJournalArgs(kwargs)
+        JournalFilter.__init__(self, jail, **kwargs)
+        self.__modified = 0
+        # Initialise systemd-journal connection
+        self.__journal = journal.Reader(**jrnlargs)
+        self.__matches = []
+        self.setDatePattern(None)
+        logSys.debug("Created FilterSystemd")
 
-		try:
-			args['files'] = kwargs.pop('journalfiles')
-		except KeyError:
-			pass
-		else:
-			import glob
-			p = args['files']
-			if not isinstance(p, (list, set, tuple)):
-				p = splitwords(p)
-			files = []
-			for p in p:
-				files.extend(glob.glob(p))
-			args['files'] = list(set(files))
+    @staticmethod
+    def _getJournalArgs(kwargs):
+        args = {"converters": {"__CURSOR": lambda x: x}}
+        try:
+            args["path"] = kwargs.pop("journalpath")
+        except KeyError:
+            pass
 
-		# Default flags is SYSTEM_ONLY(4). This would lead to ignore user session files,
-		# so can prevent "Too many open files" errors on a lot of user sessions (see gh-2392):
-		try:
-			args['flags'] = int(kwargs.pop('journalflags'))
-		except KeyError:
-			# be sure all journal types will be opened if files specified (don't set flags):
-			if 'files' not in args or not len(args['files']):
-				args['flags'] = 4
+        try:
+            args["files"] = kwargs.pop("journalfiles")
+        except KeyError:
+            pass
+        else:
+            import glob
 
-		return args
+            p = args["files"]
+            if not isinstance(p, (list, set, tuple)):
+                p = splitwords(p)
+            files = []
+            for p in p:
+                files.extend(glob.glob(p))
+            args["files"] = list(set(files))
 
-	##
-	# Add a journal match filters from list structure
-	#
-	# @param matches list structure with journal matches
+        # Default flags is SYSTEM_ONLY(4). This would lead to ignore user session files,
+        # so can prevent "Too many open files" errors on a lot of user sessions (see gh-2392):
+        try:
+            args["flags"] = int(kwargs.pop("journalflags"))
+        except KeyError:
+            # be sure all journal types will be opened if files specified (don't set flags):
+            if "files" not in args or not len(args["files"]):
+                args["flags"] = 4
 
-	def _addJournalMatches(self, matches):
-		if self.__matches:
-			self.__journal.add_disjunction() # Add OR
-		newMatches = []
-		for match in matches:
-			newMatches.append([])
-			for match_element in match:
-				self.__journal.add_match(match_element)
-				newMatches[-1].append(match_element)
-			self.__journal.add_disjunction()
-		self.__matches.extend(newMatches)
+        return args
 
-	##
-	# Add a journal match filter
-	#
-	# @param match journalctl syntax matches in list structure
+    ##
+    # Add a journal match filters from list structure
+    #
+    # @param matches list structure with journal matches
 
-	def addJournalMatch(self, match):
-		newMatches = [[]]
-		for match_element in match:
-			if match_element == "+":
-				newMatches.append([])
-			else:
-				newMatches[-1].append(match_element)
-		try:
-			self._addJournalMatches(newMatches)
-		except ValueError:
-			logSys.error(
-				"Error adding journal match for: %r", " ".join(match))
-			self.resetJournalMatches()
-			raise
-		else:
-			logSys.info("[%s] Added journal match for: %r", self.jailName, 
-				" ".join(match))
-	##
-	# Reset a journal match filter called on removal or failure
-	#
-	# @return None 
+    def _addJournalMatches(self, matches):
+        if self.__matches:
+            self.__journal.add_disjunction()  # Add OR
+        newMatches = []
+        for match in matches:
+            newMatches.append([])
+            for match_element in match:
+                self.__journal.add_match(match_element)
+                newMatches[-1].append(match_element)
+            self.__journal.add_disjunction()
+        self.__matches.extend(newMatches)
 
-	def resetJournalMatches(self):
-		self.__journal.flush_matches()
-		logSys.debug("[%s] Flushed all journal matches", self.jailName)
-		match_copy = self.__matches[:]
-		self.__matches = []
-		try:
-			self._addJournalMatches(match_copy)
-		except ValueError:
-			logSys.error("Error restoring journal matches")
-			raise
-		else:
-			logSys.debug("Journal matches restored")
+    ##
+    # Add a journal match filter
+    #
+    # @param match journalctl syntax matches in list structure
 
-	##
-	# Delete a journal match filter
-	#
-	# @param match journalctl syntax matches
+    def addJournalMatch(self, match):
+        newMatches = [[]]
+        for match_element in match:
+            if match_element == "+":
+                newMatches.append([])
+            else:
+                newMatches[-1].append(match_element)
+        try:
+            self._addJournalMatches(newMatches)
+        except ValueError:
+            logSys.error("Error adding journal match for: %r", " ".join(match))
+            self.resetJournalMatches()
+            raise
+        else:
+            logSys.info(
+                "[%s] Added journal match for: %r", self.jailName, " ".join(match)
+            )
 
-	def delJournalMatch(self, match=None):
-		# clear all:
-		if match is None:
-			if not self.__matches:
-				return
-			del self.__matches[:]
-		# delete by index:
-		elif match in self.__matches:
-			del self.__matches[self.__matches.index(match)]
-		else:
-			raise ValueError("Match %r not found" % match)
-		self.resetJournalMatches()
-		logSys.info("[%s] Removed journal match for: %r", self.jailName, 
-			match if match else '*')
+    ##
+    # Reset a journal match filter called on removal or failure
+    #
+    # @return None
 
-	##
-	# Get current journal match filter
-	#
-	# @return journalctl syntax matches
+    def resetJournalMatches(self):
+        self.__journal.flush_matches()
+        logSys.debug("[%s] Flushed all journal matches", self.jailName)
+        match_copy = self.__matches[:]
+        self.__matches = []
+        try:
+            self._addJournalMatches(match_copy)
+        except ValueError:
+            logSys.error("Error restoring journal matches")
+            raise
+        else:
+            logSys.debug("Journal matches restored")
 
-	def getJournalMatch(self):
-		return self.__matches
+    ##
+    # Delete a journal match filter
+    #
+    # @param match journalctl syntax matches
 
-	##
-	# Get journal reader
-	#
-	# @return journal reader
+    def delJournalMatch(self, match=None):
+        # clear all:
+        if match is None:
+            if not self.__matches:
+                return
+            del self.__matches[:]
+        # delete by index:
+        elif match in self.__matches:
+            del self.__matches[self.__matches.index(match)]
+        else:
+            raise ValueError("Match %r not found" % match)
+        self.resetJournalMatches()
+        logSys.info(
+            "[%s] Removed journal match for: %r", self.jailName, match if match else "*"
+        )
 
-	def getJournalReader(self):
-		return self.__journal
+    ##
+    # Get current journal match filter
+    #
+    # @return journalctl syntax matches
 
-	def getJrnEntTime(self, logentry):
-		""" Returns time of entry as tuple (ISO-str, Posix)."""
-		date = logentry.get('_SOURCE_REALTIME_TIMESTAMP')
-		if date is None:
-				date = logentry.get('__REALTIME_TIMESTAMP')
-		return (date.isoformat(), time.mktime(date.timetuple()) + date.microsecond/1.0E6)
+    def getJournalMatch(self):
+        return self.__matches
 
-	##
-	# Format journal log entry into syslog style
-	#
-	# @param entry systemd journal entry dict
-	# @return format log line
+    ##
+    # Get journal reader
+    #
+    # @return journal reader
 
-	def formatJournalEntry(self, logentry):
-		# Be sure, all argument of line tuple should have the same type:
-		enc = self.getLogEncoding()
-		logelements = []
-		v = logentry.get('_HOSTNAME')
-		if v:
-			logelements.append(uni_decode(v, enc))
-		v = logentry.get('SYSLOG_IDENTIFIER')
-		if not v:
-			v = logentry.get('_COMM')
-		if v:
-			logelements.append(uni_decode(v, enc))
-			v = logentry.get('SYSLOG_PID')
-			if not v:
-				v = logentry.get('_PID')
-			if v:
-				try: # [integer] (if already numeric):
-					v = "[%i]" % v
-				except TypeError:
-					try: # as [integer] (try to convert to int):
-						v = "[%i]" % int(v, 0)
-					except (TypeError, ValueError): # fallback - [string] as it is
-						v = "[%s]" % v
-				logelements[-1] += v
-			logelements[-1] += ":"
-			if logelements[-1] == "kernel:":
-				monotonic = logentry.get('_SOURCE_MONOTONIC_TIMESTAMP')
-				if monotonic is None:
-					monotonic = logentry.get('__MONOTONIC_TIMESTAMP')[0]
-				logelements.append("[%12.6f]" % monotonic.total_seconds())
-		msg = logentry.get('MESSAGE','')
-		if isinstance(msg, list):
-			logelements.append(" ".join(uni_decode(v, enc) for v in msg))
-		else:
-			logelements.append(uni_decode(msg, enc))
+    def getJournalReader(self):
+        return self.__journal
 
-		logline = " ".join(logelements)
+    def getJrnEntTime(self, logentry):
+        """ Returns time of entry as tuple (ISO-str, Posix)."""
+        date = logentry.get("_SOURCE_REALTIME_TIMESTAMP")
+        if date is None:
+            date = logentry.get("__REALTIME_TIMESTAMP")
+        return (
+            date.isoformat(),
+            time.mktime(date.timetuple()) + date.microsecond / 1.0e6,
+        )
 
-		date = self.getJrnEntTime(logentry)
-		logSys.log(5, "[%s] Read systemd journal entry: %s %s", self.jailName,
-			date[0], logline)
-		## use the same type for 1st argument:
-		return ((logline[:0], date[0], logline.replace('\n', '\\n')), date[1])
+    ##
+    # Format journal log entry into syslog style
+    #
+    # @param entry systemd journal entry dict
+    # @return format log line
 
-	def seekToTime(self, date):
-		if not isinstance(date, datetime.datetime):
-			date = datetime.datetime.fromtimestamp(date)
-		self.__journal.seek_realtime(date)
+    def formatJournalEntry(self, logentry):
+        # Be sure, all argument of line tuple should have the same type:
+        enc = self.getLogEncoding()
+        logelements = []
+        v = logentry.get("_HOSTNAME")
+        if v:
+            logelements.append(uni_decode(v, enc))
+        v = logentry.get("SYSLOG_IDENTIFIER")
+        if not v:
+            v = logentry.get("_COMM")
+        if v:
+            logelements.append(uni_decode(v, enc))
+            v = logentry.get("SYSLOG_PID")
+            if not v:
+                v = logentry.get("_PID")
+            if v:
+                try:  # [integer] (if already numeric):
+                    v = "[%i]" % v
+                except TypeError:
+                    try:  # as [integer] (try to convert to int):
+                        v = "[%i]" % int(v, 0)
+                    except (TypeError, ValueError):  # fallback - [string] as it is
+                        v = "[%s]" % v
+                logelements[-1] += v
+            logelements[-1] += ":"
+            if logelements[-1] == "kernel:":
+                monotonic = logentry.get("_SOURCE_MONOTONIC_TIMESTAMP")
+                if monotonic is None:
+                    monotonic = logentry.get("__MONOTONIC_TIMESTAMP")[0]
+                logelements.append("[%12.6f]" % monotonic.total_seconds())
+        msg = logentry.get("MESSAGE", "")
+        if isinstance(msg, list):
+            logelements.append(" ".join(uni_decode(v, enc) for v in msg))
+        else:
+            logelements.append(uni_decode(msg, enc))
 
-	##
-	# Main loop.
-	#
-	# Peridocily check for new journal entries matching the filter and
-	# handover to FailManager
+        logline = " ".join(logelements)
 
-	def run(self):
+        date = self.getJrnEntTime(logentry)
+        logSys.log(
+            5, "[%s] Read systemd journal entry: %s %s", self.jailName, date[0], logline
+        )
+        ## use the same type for 1st argument:
+        return ((logline[:0], date[0], logline.replace("\n", "\\n")), date[1])
 
-		if not self.getJournalMatch():
-			logSys.notice(
-				"Jail started without 'journalmatch' set. "
-				"Jail regexs will be checked against all journal entries, "
-				"which is not advised for performance reasons.")
+    def seekToTime(self, date):
+        if not isinstance(date, datetime.datetime):
+            date = datetime.datetime.fromtimestamp(date)
+        self.__journal.seek_realtime(date)
 
-		# Try to obtain the last known time (position of journal)
-		start_time = 0
-		if self.jail.database is not None:
-			start_time = self.jail.database.getJournalPos(self.jail, 'systemd-journal') or 0
-		# Seek to max(last_known_time, now - findtime) in journal
-		start_time = max( start_time, MyTime.time() - int(self.getFindTime()) )
-		self.seekToTime(start_time)
-		# Move back one entry to ensure do not end up in dead space
-		# if start time beyond end of journal
-		try:
-			self.__journal.get_previous()
-		except OSError:
-			pass # Reading failure, so safe to ignore
+    ##
+    # Main loop.
+    #
+    # Peridocily check for new journal entries matching the filter and
+    # handover to FailManager
 
-		while self.active:
-			# wait for records (or for timeout in sleeptime seconds):
-			try:
-				## todo: find better method as wait_for to break (e.g. notify) journal.wait(self.sleeptime),
-				## don't use `journal.close()` for it, because in some python/systemd implementation it may 
-				## cause abnormal program termination
-				#self.__journal.wait(self.sleeptime) != journal.NOP
-				## 
-				## wait for entries without sleep in intervals, because "sleeping" in journal.wait:
-				Utils.wait_for(lambda: not self.active or \
-					self.__journal.wait(Utils.DEFAULT_SLEEP_INTERVAL) != journal.NOP,
-					self.sleeptime, 0.00001)
-				if self.idle:
-					# because journal.wait will returns immediatelly if we have records in journal,
-					# just wait a little bit here for not idle, to prevent hi-load:
-					if not Utils.wait_for(lambda: not self.active or not self.idle, 
-						self.sleeptime * 10, self.sleeptime
-					):
-						self.ticks += 1
-						continue
-				self.__modified = 0
-				while self.active:
-					logentry = None
-					try:
-						logentry = self.__journal.get_next()
-					except OSError as e:
-						logSys.error("Error reading line from systemd journal: %s",
-							e, exc_info=logSys.getEffectiveLevel() <= logging.DEBUG)
-					self.ticks += 1
-					if logentry:
-						line = self.formatJournalEntry(logentry)
-						self.processLineAndAdd(*line)
-						self.__modified += 1
-						if self.__modified >= 100: # todo: should be configurable
-							break
-					else:
-						break
-				if self.__modified:
-					if not self.banASAP: # pragma: no cover
-						self.performBan()
-					self.__modified = 0
-					# update position in log (time and iso string):
-					if self.jail.database is not None:
-						self.jail.database.updateJournal(self.jail, 'systemd-journal', line[1], line[0][1])
-			except Exception as e: # pragma: no cover
-				if not self.active: # if not active - error by stop...
-					break
-				logSys.error("Caught unhandled exception in main cycle: %r", e,
-					exc_info=logSys.getEffectiveLevel()<=logging.DEBUG)
-				# incr common error counter:
-				self.commonError()
+    def run(self):
 
-		logSys.debug("[%s] filter terminated", self.jailName)
+        if not self.getJournalMatch():
+            logSys.notice(
+                "Jail started without 'journalmatch' set. "
+                "Jail regexs will be checked against all journal entries, "
+                "which is not advised for performance reasons."
+            )
 
-		# close journal:
-		try:
-			if self.__journal:
-				self.__journal.close()
-		except Exception as e: # pragma: no cover
-			logSys.error("Close journal failed: %r", e,
-				exc_info=logSys.getEffectiveLevel()<=logging.DEBUG)
+        # Try to obtain the last known time (position of journal)
+        start_time = 0
+        if self.jail.database is not None:
+            start_time = (
+                self.jail.database.getJournalPos(self.jail, "systemd-journal") or 0
+            )
+        # Seek to max(last_known_time, now - findtime) in journal
+        start_time = max(start_time, MyTime.time() - int(self.getFindTime()))
+        self.seekToTime(start_time)
+        # Move back one entry to ensure do not end up in dead space
+        # if start time beyond end of journal
+        try:
+            self.__journal.get_previous()
+        except OSError:
+            pass  # Reading failure, so safe to ignore
 
-		logSys.debug("[%s] filter exited (systemd)", self.jailName)
-		return True
+        while self.active:
+            # wait for records (or for timeout in sleeptime seconds):
+            try:
+                ## todo: find better method as wait_for to break (e.g. notify) journal.wait(self.sleeptime),
+                ## don't use `journal.close()` for it, because in some python/systemd implementation it may
+                ## cause abnormal program termination
+                # self.__journal.wait(self.sleeptime) != journal.NOP
+                ##
+                ## wait for entries without sleep in intervals, because "sleeping" in journal.wait:
+                Utils.wait_for(
+                    lambda: not self.active
+                    or self.__journal.wait(Utils.DEFAULT_SLEEP_INTERVAL) != journal.NOP,
+                    self.sleeptime,
+                    0.00001,
+                )
+                if self.idle:
+                    # because journal.wait will returns immediatelly if we have records in journal,
+                    # just wait a little bit here for not idle, to prevent hi-load:
+                    if not Utils.wait_for(
+                        lambda: not self.active or not self.idle,
+                        self.sleeptime * 10,
+                        self.sleeptime,
+                    ):
+                        self.ticks += 1
+                        continue
+                self.__modified = 0
+                while self.active:
+                    logentry = None
+                    try:
+                        logentry = self.__journal.get_next()
+                    except OSError as e:
+                        logSys.error(
+                            "Error reading line from systemd journal: %s",
+                            e,
+                            exc_info=logSys.getEffectiveLevel() <= logging.DEBUG,
+                        )
+                    self.ticks += 1
+                    if logentry:
+                        line = self.formatJournalEntry(logentry)
+                        self.processLineAndAdd(*line)
+                        self.__modified += 1
+                        if self.__modified >= 100:  # todo: should be configurable
+                            break
+                    else:
+                        break
+                if self.__modified:
+                    if not self.banASAP:  # pragma: no cover
+                        self.performBan()
+                    self.__modified = 0
+                    # update position in log (time and iso string):
+                    if self.jail.database is not None:
+                        self.jail.database.updateJournal(
+                            self.jail, "systemd-journal", line[1], line[0][1]
+                        )
+            except Exception as e:  # pragma: no cover
+                if not self.active:  # if not active - error by stop...
+                    break
+                logSys.error(
+                    "Caught unhandled exception in main cycle: %r",
+                    e,
+                    exc_info=logSys.getEffectiveLevel() <= logging.DEBUG,
+                )
+                # incr common error counter:
+                self.commonError()
 
-	def status(self, flavor="basic"):
-		ret = super(FilterSystemd, self).status(flavor=flavor)
-		ret.append(("Journal matches",
-			[" + ".join(" ".join(match) for match in self.__matches)]))
-		return ret
+        logSys.debug("[%s] filter terminated", self.jailName)
+
+        # close journal:
+        try:
+            if self.__journal:
+                self.__journal.close()
+        except Exception as e:  # pragma: no cover
+            logSys.error(
+                "Close journal failed: %r",
+                e,
+                exc_info=logSys.getEffectiveLevel() <= logging.DEBUG,
+            )
+
+        logSys.debug("[%s] filter exited (systemd)", self.jailName)
+        return True
+
+    def status(self, flavor="basic"):
+        ret = super(FilterSystemd, self).status(flavor=flavor)
+        ret.append(
+            (
+                "Journal matches",
+                [" + ".join(" ".join(match) for match in self.__matches)],
+            )
+        )
+        return ret

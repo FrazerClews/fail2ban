@@ -18,7 +18,7 @@
 # Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 
 # Author: Cyril Jaquier
-# 
+#
 
 __author__ = "Cyril Jaquier"
 __copyright__ = "Copyright (c) 2004 Cyril Jaquier"
@@ -30,9 +30,9 @@ import logging.handlers
 logging.MSG = logging.INFO - 2
 logging.TRACEDEBUG = 7
 logging.HEAVYDEBUG = 5
-logging.addLevelName(logging.MSG, 'MSG')
-logging.addLevelName(logging.TRACEDEBUG, 'TRACE')
-logging.addLevelName(logging.HEAVYDEBUG, 'HEAVY')
+logging.addLevelName(logging.MSG, "MSG")
+logging.addLevelName(logging.TRACEDEBUG, "TRACE")
+logging.addLevelName(logging.HEAVYDEBUG, "HEAVY")
 
 """
 Below derived from:
@@ -40,22 +40,23 @@ Below derived from:
 """
 
 logging.NOTICE = logging.INFO + 5
-logging.addLevelName(logging.NOTICE, 'NOTICE')
+logging.addLevelName(logging.NOTICE, "NOTICE")
 
 
 # define a new logger function for notice
 # this is exactly like existing info, critical, debug...etc
 def _Logger_notice(self, msg, *args, **kwargs):
-	"""
-	Log 'msg % args' with severity 'NOTICE'.
+    """
+    Log 'msg % args' with severity 'NOTICE'.
 
-	To pass exception information, use the keyword argument exc_info with
-	a true value, e.g.
+    To pass exception information, use the keyword argument exc_info with
+    a true value, e.g.
 
-	logger.notice("Houston, we have a %s", "major disaster", exc_info=1)
-	"""
-	if self.isEnabledFor(logging.NOTICE):
-		self._log(logging.NOTICE, msg, args, **kwargs)
+    logger.notice("Houston, we have a %s", "major disaster", exc_info=1)
+    """
+    if self.isEnabledFor(logging.NOTICE):
+        self._log(logging.NOTICE, msg, args, **kwargs)
+
 
 logging.Logger.notice = _Logger_notice
 
@@ -63,26 +64,30 @@ logging.Logger.notice = _Logger_notice
 # define a new root level notice function
 # this is exactly like existing info, critical, debug...etc
 def _root_notice(msg, *args, **kwargs):
-	"""
-	Log a message with severity 'NOTICE' on the root logger.
-	"""
-	if len(logging.root.handlers) == 0:
-		logging.basicConfig()
-	logging.root.notice(msg, *args, **kwargs)
+    """
+    Log a message with severity 'NOTICE' on the root logger.
+    """
+    if len(logging.root.handlers) == 0:
+        logging.basicConfig()
+    logging.root.notice(msg, *args, **kwargs)
+
 
 # make the notice root level function known
 logging.notice = _root_notice
 
 # add NOTICE to the priority map of all the levels
-logging.handlers.SysLogHandler.priority_map['NOTICE'] = 'notice'
+logging.handlers.SysLogHandler.priority_map["NOTICE"] = "notice"
 
 from time import strptime
+
 # strptime thread safety hack-around - http://bugs.python.org/issue7980
 strptime("2012", "%Y")
 
 # short names for pure numeric log-level ("Level 25" could be truncated by short formats):
 def _init():
-	for i in range(50):
-		if logging.getLevelName(i).startswith('Level'):
-			logging.addLevelName(i, '#%02d-Lev.' % i)
+    for i in range(50):
+        if logging.getLevelName(i).startswith("Level"):
+            logging.addLevelName(i, "#%02d-Lev." % i)
+
+
 _init()

@@ -18,7 +18,7 @@
 # Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 
 # Author: Cyril Jaquier
-# 
+#
 
 __author__ = "Cyril Jaquier"
 __copyright__ = "Copyright (c) 2004 Cyril Jaquier"
@@ -32,52 +32,63 @@ logSys = getLogger(__name__)
 
 
 class Fail2banReader(ConfigReader):
-	
-	def __init__(self, **kwargs):
-		ConfigReader.__init__(self, **kwargs)
-	
-	def read(self):
-		ConfigReader.read(self, "fail2ban")
-	
-	def getEarlyOptions(self):
-		opts = [
-			["string", "socket", "/var/run/fail2ban/fail2ban.sock"],
-			["string", "pidfile", "/var/run/fail2ban/fail2ban.pid"],
-			["string", "loglevel", "INFO"],
-			["string", "logtarget", "/var/log/fail2ban.log"],
-			["string", "syslogsocket", "auto"]
-		]
-		return ConfigReader.getOptions(self, "Definition", opts)
-	
-	def getOptions(self, updateMainOpt=None):
-		opts = [["string", "loglevel", "INFO" ],
-				["string", "logtarget", "STDERR"],
-				["string", "syslogsocket", "auto"],
-				["string", "dbfile", "/var/lib/fail2ban/fail2ban.sqlite3"],
-				["int",    "dbmaxmatches", None],
-				["string", "dbpurgeage", "1d"]]
-		self.__opts = ConfigReader.getOptions(self, "Definition", opts)
-		if updateMainOpt:
-			self.__opts.update(updateMainOpt)
-		# check given log-level:
-		str2LogLevel(self.__opts.get('loglevel', 0))
-		# thread options:
-		opts = [["int", "stacksize", ],
-		]
-		if self.has_section("Thread"):
-			thopt = ConfigReader.getOptions(self, "Thread", opts)
-			if thopt:
-				self.__opts['thread'] = thopt
+    def __init__(self, **kwargs):
+        ConfigReader.__init__(self, **kwargs)
 
-	def convert(self):
-		# Ensure logtarget/level set first so any db errors are captured
-		# Also dbfile should be set before all other database options.
-		# So adding order indices into items, to be stripped after sorting, upon return
-		order = {"thread":0, "syslogsocket":11, "loglevel":12, "logtarget":13,
-			"dbfile":50, "dbmaxmatches":51, "dbpurgeage":51}
-		stream = list()
-		for opt in self.__opts:
-			if opt in order:
-				stream.append((order[opt], ["set", opt, self.__opts[opt]]))
-		return [opt[1] for opt in sorted(stream)]
-	
+    def read(self):
+        ConfigReader.read(self, "fail2ban")
+
+    def getEarlyOptions(self):
+        opts = [
+            ["string", "socket", "/var/run/fail2ban/fail2ban.sock"],
+            ["string", "pidfile", "/var/run/fail2ban/fail2ban.pid"],
+            ["string", "loglevel", "INFO"],
+            ["string", "logtarget", "/var/log/fail2ban.log"],
+            ["string", "syslogsocket", "auto"],
+        ]
+        return ConfigReader.getOptions(self, "Definition", opts)
+
+    def getOptions(self, updateMainOpt=None):
+        opts = [
+            ["string", "loglevel", "INFO"],
+            ["string", "logtarget", "STDERR"],
+            ["string", "syslogsocket", "auto"],
+            ["string", "dbfile", "/var/lib/fail2ban/fail2ban.sqlite3"],
+            ["int", "dbmaxmatches", None],
+            ["string", "dbpurgeage", "1d"],
+        ]
+        self.__opts = ConfigReader.getOptions(self, "Definition", opts)
+        if updateMainOpt:
+            self.__opts.update(updateMainOpt)
+        # check given log-level:
+        str2LogLevel(self.__opts.get("loglevel", 0))
+        # thread options:
+        opts = [
+            [
+                "int",
+                "stacksize",
+            ],
+        ]
+        if self.has_section("Thread"):
+            thopt = ConfigReader.getOptions(self, "Thread", opts)
+            if thopt:
+                self.__opts["thread"] = thopt
+
+    def convert(self):
+        # Ensure logtarget/level set first so any db errors are captured
+        # Also dbfile should be set before all other database options.
+        # So adding order indices into items, to be stripped after sorting, upon return
+        order = {
+            "thread": 0,
+            "syslogsocket": 11,
+            "loglevel": 12,
+            "logtarget": 13,
+            "dbfile": 50,
+            "dbmaxmatches": 51,
+            "dbpurgeage": 51,
+        }
+        stream = list()
+        for opt in self.__opts:
+            if opt in order:
+                stream.append((order[opt], ["set", opt, self.__opts[opt]]))
+        return [opt[1] for opt in sorted(stream)]

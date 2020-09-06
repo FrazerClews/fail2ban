@@ -25,18 +25,17 @@ import sys
 
 
 def updatePyExec(bindir, executable=None):
-	"""Update fail2ban-python link to current python version (where f2b-modules located/installed)
-	"""
-	bindir = os.path.realpath(bindir)
-	if executable is None:
-		executable = sys.executable
-	pypath = os.path.join(bindir, 'fail2ban-python')
-	# if not exists or point to another version - update link:
-	isfile = os.path.isfile(os.path.realpath(pypath))
-	if not isfile or os.path.realpath(pypath) != os.path.realpath(executable):
-		if isfile:
-			os.unlink(pypath)
-		os.symlink(executable, pypath)
-	# extend current environment path (e.g. if fail2ban not yet installed):
-	if bindir not in os.environ["PATH"].split(os.pathsep):
-		os.environ["PATH"] = os.environ["PATH"] + os.pathsep + bindir;
+    """Update fail2ban-python link to current python version (where f2b-modules located/installed)"""
+    bindir = os.path.realpath(bindir)
+    if executable is None:
+        executable = sys.executable
+    pypath = os.path.join(bindir, "fail2ban-python")
+    # if not exists or point to another version - update link:
+    isfile = os.path.isfile(os.path.realpath(pypath))
+    if not isfile or os.path.realpath(pypath) != os.path.realpath(executable):
+        if isfile:
+            os.unlink(pypath)
+        os.symlink(executable, pypath)
+    # extend current environment path (e.g. if fail2ban not yet installed):
+    if bindir not in os.environ["PATH"].split(os.pathsep):
+        os.environ["PATH"] = os.environ["PATH"] + os.pathsep + bindir
